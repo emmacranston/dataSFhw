@@ -1,0 +1,272 @@
+// use correct database
+USE TAKE_HOME_USER1;
+
+// 1 renaming columns using dictionary
+// probably better to do this in python with iterating loads
+//   rather than running a union every time the table loads
+SELECT
+	a.PROPLOC as property_location
+    , a.RP1NBRCDE AS assessor_neighborhood_code
+	, a.RP1PRCLID AS block_and_lot
+    , a.RP1VOLUME AS volume_number
+    , a.RP1CLACDE AS property_class_code
+    , a.YRBLT AS year_property_built
+    , a.BATHS AS number_of_bathrooms
+    , a.BEDS AS number_of_bedrooms
+    , a.ROOMS AS number_of_rooms
+    , a.STOREYNO AS number_of_stories 
+    , a.UNITS AS number_of_units
+    , a.ZONE AS zoning_code
+    , a.CONSTTYPE AS construction_type
+    , a.DEPTH AS lot_depth
+    , a.FRONT AS lot_frontage
+    , a.SQFT AS property_area
+    , a.FBA AS basement_area
+    , a.LAREA AS lot_area
+    , a.LOTCODE AS lot_code
+    , a.REPRISDATE AS prior_sales_date
+    , a.RP1TRACDE AS tax_rate_area_code
+    , a.OWNRPRCNT AS percent_of_ownership
+    , a.EXEMPTYPE AS exemption_code
+    , a.RP1STACDE AS status_code
+    , a.RP1EXMVL2 AS misc_exemption_value
+    , a.RP1EXMVL1 AS homeowner_redemption_code
+    , a.ROLLYEAR AS closed_Roll_year
+    , a.RECURRSALD AS current_sales_date
+    , a.RP1FXTVAL AS assessed_fixtures_value
+    , a.RP1IMPVAL AS assessed_improvement_value
+    , a.RP1LNDVAL AS assessed_land_value
+    , a.RP1PPTVAL AS assessed_personal_property_value
+    , 'asr_2017' AS data_source
+FROM asr.asr_2017
+
+LIMIT 100;
+
+
+// 2 and 3
+// transform RP1PRCLID to separate block and lot
+// transform RP1PRCLID to concatenate block and lot w/o space
+SELECT DISTINCT 
+    , REGEXP_REPLACE(SPLIT(rp1prclid, ' ')[0], '"', '') AS block
+    , REGEXP_REPLACE(SPLIT(rp1prclid, ' ')[1],'"', '') AS lot
+    , REGEXP_REPLACE(rp1prclid, ' ', '') AS parcel_number
+FROM asr.asr_2017
+LIMIT 20;
+
+// 4a adding exemption information
+// best to do this in Python also for error handling and logging
+SELECT DISTINCT
+ exemptype AS exemption_id
+    , e."exemption_definition" AS exemption_definition
+FROM asr.asr_2017
+// exemption codes are sometimes integers and sometimes strings
+// asr table seems to have integers with 0s as prefix, doesn't load properly
+LEFT JOIN asr.exemption_codes AS e ON IFNULL(TRY_CAST(asr_2017.exemptype AS INTEGER), asr_2017.exemptype)::VARCHAR = IFNULL(TRY_CAST(e."exemption_code" AS INTEGER),e."exemption_code")::VARCHAR
+LIMIT 20;
+
+
+// 4b Adding information on property codes
+SELECT 
+ DISTINCT a.rp1clacde
+ , pc."class_code"
+ , pc."class_definition"
+ , pc."use_code"
+ , pc."use_definition"
+from asr.asr_2017 a
+LEFT JOIN asr.property_codes pc ON a.rp1clacde = pc."class_code"
+;
+
+//4c Adding information on neighborhood codes
+SELECT 
+	a.rp1nbrcde AS a_neighborhood_code
+    , nc."code"
+    , nc."district"
+    , nc."neighborhood"
+FROM asr.asr_2017 AS a
+LEFT JOIN asr.neighborhood_codes AS nc ON a.rp1nbrcde = nc."code"
+WHERE nc."code" IS NOT NULL
+;
+
+//5 Add parcel information
+SELECT
+ REGEXP_REPLACE(rp1prclid, ' ', '') AS parcel_number_A
+, p."parcel_number"
+, p."block"
+, p."lot"
+, p."supervisor_district"
+, p."analysis_neighborhood"
+, p."planning_district"
+, p."planning_district_number"
+, p."the_geom"
+FROM asr.asr_2017 a
+LEFT JOIN asr.parcels p ON REGEXP_REPLACE(a.rp1prclid, ' ', '') = p."parcel_number"
+;
+
+// Create final table with all transforms
+CREATE TABLE ASR.asr_archive AS (
+SELECT
+	a.PROPLOC as property_location
+    , a.RP1NBRCDE AS assessor_neighborhood_code
+	, a.RP1PRCLID AS block_and_lot
+    , REGEXP_REPLACE(SPLIT(rp1prclid, ' ')[0], '"', '') AS block
+    , REGEXP_REPLACE(SPLIT(rp1prclid, ' ')[1],'"', '') AS lot
+    , REGEXP_REPLACE(rp1prclid, ' ', '') AS parcel_number
+	, p."supervisor_district"
+	, p."analysis_neighborhood"
+	, p."planning_district"
+	, p."planning_district_number"
+	, p."the_geom"
+    , a.RP1VOLUME AS volume_number
+    , a.RP1CLACDE AS property_class_code
+    , pc."class_definition" AS property_class_definition
+ 	, pc."use_code" AS property_use_code
+ 	, pc."use_definition" AS property_use_definition
+    , a.YRBLT AS year_property_built
+    , a.BATHS AS number_of_bathrooms
+    , a.BEDS AS number_of_bedrooms
+    , a.ROOMS AS number_of_rooms
+    , a.STOREYNO AS number_of_stories 
+    , a.UNITS AS number_of_units
+    , a.ZONE AS zoning_code
+    , a.CONSTTYPE AS construction_type
+    , a.DEPTH AS lot_depth
+    , a.FRONT AS lot_frontage
+    , a.SQFT AS property_area
+    , a.FBA AS basement_area
+    , a.LAREA AS lot_area
+    , a.LOTCODE AS lot_code
+    , a.REPRISDATE AS prior_sales_date
+    , a.RP1TRACDE AS tax_rate_area_code
+    , a.OWNRPRCNT AS percent_of_ownership
+    , a.EXEMPTYPE AS exemption_code
+    , ec."exemption_definition" AS "exemption_definition"
+    , a.RP1STACDE AS status_code
+    , a.RP1EXMVL2 AS misc_exemption_value
+    , a.RP1EXMVL1 AS homeowner_redemption_code
+    , a.ROLLYEAR AS closed_Roll_year
+    , a.RECURRSALD AS current_sales_date
+    , a.RP1FXTVAL AS assessed_fixtures_value
+    , a.RP1IMPVAL AS assessed_improvement_value
+    , a.RP1LNDVAL AS assessed_land_value
+    , a.RP1PPTVAL AS assessed_personal_property_value
+    , 'asr_2017' AS data_source
+FROM asr.asr_2017 AS a
+LEFT JOIN asr.exemption_codes AS ec 
+	ON IFNULL(TRY_CAST(a.exemptype AS INTEGER)::VARCHAR,a.exemptype) =
+    	IFNULL(TRY_CAST(ec."exemption_code" AS INTEGER)::VARCHAR
+        , ec."exemption_code")
+LEFT JOIN asr.property_codes pc ON a.rp1clacde = pc."class_code"
+LEFT JOIN asr.parcels p ON REGEXP_REPLACE(a.rp1prclid, ' ', '') = p."parcel_number"
+
+UNION ALL
+
+SELECT
+	a.PROPLOC as property_location
+    , a.RP1NBRCDE AS assessor_neighborhood_code
+	, a.RP1PRCLID AS block_and_lot
+    , REGEXP_REPLACE(SPLIT(rp1prclid, ' ')[0], '"', '') AS block
+    , REGEXP_REPLACE(SPLIT(rp1prclid, ' ')[1],'"', '') AS lot
+    , REGEXP_REPLACE(rp1prclid, ' ', '') AS parcel_number
+	, p."supervisor_district"
+	, p."analysis_neighborhood"
+	, p."planning_district"
+	, p."planning_district_number"
+	, p."the_geom"
+    , a.RP1VOLUME AS volume_number
+    , a.RP1CLACDE AS property_class_code
+    , pc."class_definition" AS property_class_definition
+ 	, pc."use_code" AS property_use_code
+ 	, pc."use_definition" AS property_use_definition
+    , a.YRBLT AS year_property_built
+    , a.BATHS AS number_of_bathrooms
+    , a.BEDS AS number_of_bedrooms
+    , a.ROOMS AS number_of_rooms
+    , a.STOREYNO AS number_of_stories 
+    , a.UNITS AS number_of_units
+    , a.ZONE AS zoning_code
+    , a.CONSTTYPE AS construction_type
+    , a.DEPTH AS lot_depth
+    , a.FRONT AS lot_frontage
+    , a.SQFT AS property_area
+    , a.FBA AS basement_area
+    , a.LAREA AS lot_area
+    , a.LOTCODE AS lot_code
+    , a.REPRISDATE AS prior_sales_date
+    , a.RP1TRACDE AS tax_rate_area_code
+    , a.OWNRPRCNT AS percent_of_ownership
+    , a.EXEMPTYPE AS exemption_code
+    , ec."exemption_definition" AS "exemption_definition"
+    , a.RP1STACDE AS status_code
+    , a.RP1EXMVL2 AS misc_exemption_value
+    , a.RP1EXMVL1 AS homeowner_redemption_code
+    , a.ROLLYEAR AS closed_Roll_year
+    , a.RECURRSALD AS current_sales_date
+    , a.RP1FXTVAL AS assessed_fixtures_value
+    , a.RP1IMPVAL AS assessed_improvement_value
+    , a.RP1LNDVAL AS assessed_land_value
+    , a.RP1PPTVAL AS assessed_personal_property_value
+    , 'asr_2018' AS data_source
+FROM asr.asr_2018 AS a
+LEFT JOIN asr.exemption_codes AS ec 
+	ON IFNULL(TRY_CAST(a.exemptype AS INTEGER)::VARCHAR,a.exemptype) =
+    	IFNULL(TRY_CAST(ec."exemption_code" AS INTEGER)::VARCHAR
+        , ec."exemption_code")
+LEFT JOIN asr.property_codes pc ON a.rp1clacde = pc."class_code"
+LEFT JOIN asr.parcels p ON REGEXP_REPLACE(a.rp1prclid, ' ', '') = p."parcel_number"
+
+UNION ALL 
+SELECT
+	a.PROPLOC as property_location
+    , a.RP1NBRCDE AS assessor_neighborhood_code
+	, a.RP1PRCLID AS block_and_lot
+    , REGEXP_REPLACE(SPLIT(rp1prclid, ' ')[0], '"', '') AS block
+    , REGEXP_REPLACE(SPLIT(rp1prclid, ' ')[1],'"', '') AS lot
+    , REGEXP_REPLACE(rp1prclid, ' ', '') AS parcel_number
+	, p."supervisor_district"
+	, p."analysis_neighborhood"
+	, p."planning_district"
+	, p."planning_district_number"
+	, p."the_geom"
+    , a.RP1VOLUME AS volume_number
+    , a.RP1CLACDE AS property_class_code
+    , pc."class_definition" AS property_class_definition
+ 	, pc."use_code" AS property_use_code
+ 	, pc."use_definition" AS property_use_definition
+    , a.YRBLT AS year_property_built
+    , a.BATHS AS number_of_bathrooms
+    , a.BEDS AS number_of_bedrooms
+    , a.ROOMS AS number_of_rooms
+    , a.STOREYNO AS number_of_stories 
+    , a.UNITS AS number_of_units
+    , a.ZONE AS zoning_code
+    , a.CONSTTYPE AS construction_type
+    , a.DEPTH AS lot_depth
+    , a.FRONT AS lot_frontage
+    , a.SQFT AS property_area
+    , a.FBA AS basement_area
+    , a.LAREA AS lot_area
+    , a.LOTCODE AS lot_code
+    , a.REPRISDATE AS prior_sales_date
+    , a.RP1TRACDE AS tax_rate_area_code
+    , a.OWNRPRCNT AS percent_of_ownership
+    , a.EXEMPTYPE AS exemption_code
+    , ec."exemption_definition" AS "exemption_definition"
+    , a.RP1STACDE AS status_code
+    , a.RP1EXMVL2 AS misc_exemption_value
+    , a.RP1EXMVL1 AS homeowner_redemption_code
+    , a.ROLLYEAR AS closed_Roll_year
+    , a.RECURRSALD AS current_sales_date
+    , a.RP1FXTVAL AS assessed_fixtures_value
+    , a.RP1IMPVAL AS assessed_improvement_value
+    , a.RP1LNDVAL AS assessed_land_value
+    , a.RP1PPTVAL AS assessed_personal_property_value
+    , 'asr_2019' AS data_source
+FROM asr.asr_2019 AS a
+LEFT JOIN asr.exemption_codes AS ec 
+	ON IFNULL(TRY_CAST(a.exemptype AS INTEGER)::VARCHAR,a.exemptype) =
+    	IFNULL(TRY_CAST(ec."exemption_code" AS INTEGER)::VARCHAR
+        , ec."exemption_code")
+LEFT JOIN asr.property_codes pc ON a.rp1clacde = pc."class_code"
+LEFT JOIN asr.parcels p ON REGEXP_REPLACE(a.rp1prclid, ' ', '') = p."parcel_number"
+)
+;

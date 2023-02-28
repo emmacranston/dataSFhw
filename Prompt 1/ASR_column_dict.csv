@@ -1,0 +1,33 @@
+Source Field Name,Destination Field Name
+PROPLOC,Property Location
+RP1NBRCDE,Assessor Neighborhood Code
+RP1PRCLID,Block and Lot
+RP1VOLUME,Volume Number
+RP1CLACDE,Property Class Code
+YRBLT,Year Property Built
+BATHS,Number of Bathrooms
+BEDS,Number of Bedrooms
+ROOMS,Number of Rooms
+STOREYNO,Number of Stories
+UNITS,Number of Units
+ZONE,Zoning Code
+CONSTTYPE,Construction Type
+DEPTH,Lot Depth
+FRONT,Lot Frontage
+SQFT,Property Area
+FBA,Basement Area
+LAREA,Lot Area
+LOTCODE,Lot Code
+REPRISDATE,Prior Sales Date
+RP1TRACDE,Tax Rate Area Code
+OWNRPRCNT,Percent of Ownership
+EXEMPTYPE,Exemption Code
+RP1STACDE,Status Code
+RP1EXMVL2,Misc Exemption Value
+RP1EXMVL1,Homeowner Exemption Value
+ROLLYEAR,Closed Roll Year
+RECURRSALD,Current Sales Date
+RP1FXTVAL,Assessed Fixtures Value
+RP1IMPVAL,Assessed Improvement Value
+RP1LNDVAL,Assessed Land Value
+RP1PPTVAL,Assessed Personal Property Value
